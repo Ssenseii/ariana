@@ -29,8 +29,8 @@ wmi>=1.5.1 (Windows only)
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Ssenseii/ai-model-capability-analyzer.git
-cd ai-model-capability-analyzer
+git clone https://github.com/Ssenseii/ariana.git
+cd ariana
 ```
 
 2. Create a virtual environment (optional but recommended):
