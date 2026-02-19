@@ -5,6 +5,7 @@ Creates formatted text reports with system analysis and model compatibility resu
 
 from typing import Dict, List, Any
 from datetime import datetime
+from analyzer import can_run_now, can_run, can_run_after_memory_cleanup
 
 
 def format_system_section(system_info: Dict[str, Any]) -> str:
@@ -46,10 +47,16 @@ def format_system_section(system_info: Dict[str, Any]) -> str:
         lines.append("Graphics Processing Unit(s):")
         for i, gpu in enumerate(gpu_list, 1):
             lines.append(f"  GPU {i}: {gpu.get('name', 'Unknown')}")
-            if 'vram_total_gb' in gpu and gpu['vram_total_gb']:
+            if gpu.get('unified_memory') and gpu.get('vram_total_gb'):
+                lines.append(f"    Unified Memory: {gpu['vram_total_gb']} GB (shared CPU/GPU)")
+            elif 'vram_total_gb' in gpu and gpu['vram_total_gb']:
                 lines.append(f"    VRAM: {gpu['vram_total_gb']} GB")
             if 'vendor' in gpu:
                 lines.append(f"    Vendor: {gpu['vendor']}")
+            if gpu.get('metal_support'):
+                lines.append(f"    Metal: Supported")
+            if gpu.get('gpu_cores'):
+                lines.append(f"    GPU Cores: {gpu['gpu_cores']}")
             if 'driver' in gpu:
                 lines.append(f"    Driver: {gpu['driver']}")
             lines.append("")
@@ -96,11 +103,15 @@ def format_model_entry(model: Dict[str, Any], rank: int) -> List[str]:
     # Bottleneck info
     bottleneck = compat.get('bottleneck', 'none')
     if bottleneck == 'ram':
-        lines.append(f"   ⚠ Bottleneck: Insufficient RAM")
+        lines.append("   ⚠ Bottleneck: Insufficient RAM")
+    elif bottleneck == 'unified_memory':
+        lines.append("   ⚠ Bottleneck: Model exceeds total unified memory")
+    elif bottleneck == 'unified_memory_pressure':
+        lines.append("   ⚠ Bottleneck: High unified-memory pressure (close apps for better performance)")
     elif bottleneck == 'vram':
-        lines.append(f"   ⚠ Bottleneck: Limited VRAM (will use CPU offloading)")
+        lines.append("   ⚠ Bottleneck: Limited VRAM (will use CPU offloading)")
     elif bottleneck == 'no_gpu':
-        lines.append(f"   ⚠ Note: Will run on CPU only (slower)")
+        lines.append("   ⚠ Note: Will run on CPU only (slower)")
     
     lines.append("")
     return lines
@@ -115,8 +126,12 @@ def format_models_section(analyzed_models: List[Dict[str, Any]]) -> str:
     lines.append("")
     
     # Categorize models
-    runnable = [m for m in analyzed_models if m['compatibility']['can_run']]
-    cannot_run = [m for m in analyzed_models if not m['compatibility']['can_run']]
+    runnable = [m for m in analyzed_models if can_run_now(m.get('compatibility', {}))]
+    runnable_after_cleanup = [
+        m for m in analyzed_models
+        if can_run_after_memory_cleanup(m.get('compatibility', {}))
+    ]
+    cannot_run = [m for m in analyzed_models if not can_run(m.get('compatibility', {}))]
     
     excellent = [m for m in runnable if m['compatibility']['status'] == 'excellent']
     good = [m for m in runnable if m['compatibility']['status'] == 'good']
@@ -126,6 +141,7 @@ def format_models_section(analyzed_models: List[Dict[str, Any]]) -> str:
     lines.append("SUMMARY:")
     lines.append(f"  Total Models Analyzed: {len(analyzed_models)}")
     lines.append(f"  Can Run: {len(runnable)} ({len(runnable)*100//len(analyzed_models) if analyzed_models else 0}%)")
+    lines.append(f"  Can Run After Memory Cleanup: {len(runnable_after_cleanup)} ({len(runnable_after_cleanup)*100//len(analyzed_models) if analyzed_models else 0}%)")
     lines.append(f"    - Excellent Performance: {len(excellent)}")
     lines.append(f"    - Good Performance: {len(good)}")
     lines.append(f"    - Marginal Performance: {len(marginal)}")
@@ -157,6 +173,16 @@ def format_models_section(analyzed_models: List[Dict[str, Any]]) -> str:
             lines.append("")
             for i, model in enumerate(marginal, 1):
                 lines.extend(format_model_entry(model, i))
+
+    # Models that may run after memory cleanup
+    if runnable_after_cleanup:
+        lines.append("-" * 80)
+        lines.append("MODELS REQUIRING MEMORY CLEANUP")
+        lines.append("-" * 80)
+        lines.append("")
+
+        for i, model in enumerate(runnable_after_cleanup, 1):
+            lines.extend(format_model_entry(model, i))
     
     # Models you CANNOT run
     if cannot_run:

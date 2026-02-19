@@ -15,7 +15,12 @@ This will:
 import sys
 from system_analyzer import get_system_info
 from model_scraper import get_model_data
-from analyzer import analyze_model_compatibility, generate_recommendations
+from analyzer import (
+    analyze_model_compatibility,
+    generate_recommendations,
+    can_run_now,
+    can_run_after_memory_cleanup,
+)
 from report_generator import generate_report
 
 
@@ -39,7 +44,10 @@ def main():
         if gpu_list:
             for gpu in gpu_list:
                 vram = gpu.get('vram_total_gb', 0)
-                vram_str = f" ({vram} GB VRAM)" if vram else ""
+                if gpu.get('unified_memory'):
+                    vram_str = f" ({vram} GB Unified Memory)" if vram else ""
+                else:
+                    vram_str = f" ({vram} GB VRAM)" if vram else ""
                 print(f"  ✓ GPU: {gpu.get('name', 'Unknown')}{vram_str}")
         else:
             print(f"  ⚠ GPU: None detected (will use CPU only)")
@@ -66,9 +74,15 @@ def main():
     try:
         analyzed_models = analyze_model_compatibility(system_info, models)
         
-        runnable = [m for m in analyzed_models if m['compatibility']['can_run']]
+        runnable = [m for m in analyzed_models if can_run_now(m.get('compatibility', {}))]
+        runnable_after_cleanup = [
+            m for m in analyzed_models
+            if can_run_after_memory_cleanup(m.get('compatibility', {}))
+        ]
         print(f"  ✓ Analysis complete")
         print(f"  ✓ You can run {len(runnable)} out of {len(models)} models")
+        if runnable_after_cleanup:
+            print(f"  ⚠ {len(runnable_after_cleanup)} additional models may run after freeing memory")
         print()
     except Exception as e:
         print(f"  ✗ Error analyzing compatibility: {e}")
@@ -97,7 +111,7 @@ def main():
     print()
     
     # Show top 3 recommended models
-    top_models = [m for m in analyzed_models if m['compatibility']['can_run']][:3]
+    top_models = [m for m in analyzed_models if can_run_now(m.get('compatibility', {}))][:3]
     if top_models:
         print("Top models you can run:")
         for i, model in enumerate(top_models, 1):
