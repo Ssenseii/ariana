@@ -8,12 +8,13 @@ A Python tool that analyzes your system's hardware and determines which AI model
 - **AI Model Database**: Fetches data on 200+ AI models from Ollama and other sources
 - **Compatibility Analysis**: Determines which models your system can run based on resource requirements
 - **Detailed Reporting**: Generates a comprehensive report with recommendations
-- **Support for Multiple GPUs**: Detects and accounts for NVIDIA and AMD GPUs
+- **Support for Multiple GPUs**: Detects and accounts for NVIDIA, AMD, and Apple Silicon GPUs
+- **Apple Silicon Aware**: Detects unified memory and Metal support for macOS Apple Silicon systems
 
 ## Requirements
 
 - Python 3.7+
-- Windows/Linux/macOS
+- Windows/Linux/macOS (Intel and Apple Silicon)
 
 ### Dependencies
 
@@ -86,7 +87,7 @@ AI MODEL CAPABILITY ANALYZER
 The analyzer detects your system specifications:
 - **CPU**: Number of cores and max frequency
 - **RAM**: Total and available memory
-- **GPU**: VRAM and driver information
+- **GPU**: VRAM or unified memory, plus vendor/driver and Metal support when available
 - **Disk**: Available space
 
 ### Model Requirements
@@ -101,6 +102,7 @@ Each AI model has specific requirements:
 Models are scored based on:
 - Available RAM vs. required RAM
 - Available VRAM vs. recommended VRAM
+- Unified memory pressure and total memory pool on Apple Silicon
 - Available disk space
 - Overall system capabilities
 
@@ -145,7 +147,7 @@ After analyzing your system, the tool provides recommendations:
 
 - VRAM detection may not be accurate on all systems
 - Windows with WMI may have detection issues in some configurations
-- GPU detection is optimized for NVIDIA and AMD GPUs
+- Some Apple Silicon GPU fields depend on `system_profiler` output and may vary by macOS setup
 - Model requirements are estimates based on typical scenarios
 
 ## Troubleshooting
